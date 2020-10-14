@@ -1,3 +1,7 @@
+# This is Edoki academy countly fork
+This fork is use to make change in countly
+
+
 # Countly Unity SDK
 
 We're hiring: Countly is looking for full stack devs, devops and growth hackers (remote work). [Click this link for job description](https://angel.co/countly/jobs/)
