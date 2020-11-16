@@ -1,6 +1,6 @@
-# This is Edoki academy countly fork
-This fork is use to make change in countly
-
+# Use the no-Push branch
+# Use the no-Push branch
+# Use the no-Push branch
 
 # Countly Unity SDK
 
