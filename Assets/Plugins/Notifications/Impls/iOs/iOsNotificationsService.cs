@@ -1,50 +1,99 @@
+using Plugins.CountlySDK.Helpers;
+using Plugins.CountlySDK.Models;
+using Plugins.CountlySDK.Services;
 using System;
 using System.Collections;
-#if UNITY_IOS
-using Unity.Notifications.iOS;
-#endif
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Notifications.Impls.iOs
 {
     public class IOsNotificationsService : INotificationsService
     {
+        private readonly CountlyConfigModel _config;
         private readonly Action<IEnumerator> _startCoroutine;
+        private readonly EventCountlyService _eventCountlyService;
 
-        public IOsNotificationsService(Action<IEnumerator> startCoroutine)
+        private readonly IOSBridage _bridge;
+        private const string BridgeName = "[iOS] Bridge";
+
+        private Action<string> _OnNotificationReceiveResult;
+        private Action<string, int> _OnNotificationClickResult;
+
+
+        internal IOsNotificationsService(CountlyConfigModel config, Action<IEnumerator> startCoroutine, EventCountlyService eventCountlyService)
         {
+            _config = config;
             _startCoroutine = startCoroutine;
+            _eventCountlyService = eventCountlyService;
+
+            var gameObject = new GameObject(BridgeName);
+            _bridge = gameObject.AddComponent<IOSBridage>();
+            _bridge.Config = _config;
+
         }
 
         public void GetToken(Action<string> result)
         {
-            _startCoroutine.Invoke(RequestAuthorization(result));
+            // _startCoroutine.Invoke(RequestAuthorization(result));
+            _bridge.ListenTokenResult(result);
+            _bridge.GetToken();
         }
 
-        private IEnumerator RequestAuthorization(Action<string> result)
+        public async Task<CountlyResponse> ReportPushActionAsync()
         {
-            Debug.Log("[IOsNotificationsService] RequestAuthorization");
-#if UNITY_IOS
-            using (var req = new AuthorizationRequest(AuthorizationOption.Alert | AuthorizationOption.Badge, true))
+            string mesageId = _bridge.MessageId;
+            string identifier = _bridge.ButtonIndex;
+
+            if (_bridge.MessageId != null)
             {
-                while (!req.IsFinished)
+                var segment =
+                    new Plugins.CountlySDK.Services.PushCountlyService.PushActionSegment
+                    {
+                        MessageID = mesageId,
+                        Identifier = identifier
+                    };
+
+                if (_config.EnableConsoleLogging)
                 {
-                    yield return null;
+                    Debug.Log("[Countly] ReportPushActionAsync key: " + CountlyEventModel.PushActionEvent + ", segments: " + segment);
                 }
-                
-                var res = "\n RequestAuthorization: \n";
-                res += "\n finished: " + req.IsFinished;
-                res += "\n granted :  " + req.Granted;
-                res += "\n error:  " + req.Error;
-                res += "\n deviceToken:  " + req.DeviceToken;
-                Debug.Log(res);
-                
-                result.Invoke(req.DeviceToken);
+
+                await _eventCountlyService.ReportCustomEventAsync(
+                    CountlyEventModel.PushActionEvent, segment.ToDictionary());
             }
-#else
-            Debug.Log("[Countly] IOsNotificationsService, RequestAuthorization, execution will be skipped, Unity.Notification.iOS exists only on IOS platform");
-            yield return null;
-#endif
+
+            _bridge.MessageId = null;
+            _bridge.ButtonIndex = null;
+
+            return new CountlyResponse
+            {
+                IsSuccess = true,
+            };
         }
+
+        public void OnNotificationClicked(Action<string, int> result)
+        {
+            if (_config.EnableConsoleLogging)
+            {
+                Debug.Log("[Countly] OnNotificationClicked register");
+            }
+            
+            _bridge.ListenClickResult(result);
+
+        }
+
+        public void OnNotificationReceived(Action<string> result)
+        {
+            if (_config.EnableConsoleLogging)
+            {
+                Debug.Log("[Countly] OnNotificationReceived register");
+            }
+
+            _bridge.ListenReceiveResult(result);
+           
+        }
+
+       
     }
 }
